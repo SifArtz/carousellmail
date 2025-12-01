@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import smtplib
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
@@ -286,7 +287,7 @@ class TelegramBot:
         valid_cached = [r for r in results if r["valid"] and r["already_verified"]]
         invalid = [r for r in results if not r["valid"]]
 
-        for r in valid_new[:20]:  # максимум 20 новых результатов
+        for r in valid_new:
             listing: Listing = r["listing"]
             email = r["email"]
             formatted = (
@@ -308,6 +309,34 @@ class TelegramBot:
 
         await msg.answer(summary, parse_mode=ParseMode.HTML)
         await self.verifier.save_valid_emails()
+
+        await self.send_export_file(msg, filename, valid_new + valid_cached)
+
+    async def send_export_file(
+        self, msg: types.Message, filename: str, valid_results: List[Dict[str, object]]
+    ):
+        """Формирует и отправляет файл с валидными email и заголовками товаров."""
+        if not valid_results:
+            await msg.answer("📄 Нет валидных email для экспорта.")
+            return
+
+        lines = ["email | title"]
+        for result in valid_results:
+            listing: Listing = result["listing"]
+            lines.append(f"{result['email']} | {listing.title}")
+
+        fd, temp_path_str = tempfile.mkstemp(prefix="carousell_emails_", suffix=".txt")
+        temp_path = Path(temp_path_str)
+        os.close(fd)
+        temp_path.write_text("\n".join(lines), encoding="utf-8")
+
+        try:
+            await msg.answer_document(
+                types.InputFile(temp_path),
+                caption=f"📄 Валидные адреса из {filename}",
+            )
+        finally:
+            temp_path.unlink(missing_ok=True)
 
     async def run(self):
         logger.info("🤖 Bot started polling...")
