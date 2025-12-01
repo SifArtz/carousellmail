@@ -327,15 +327,19 @@ class TelegramBot:
 
         temp_file = None
         try:
-            temp_file = tempfile.NamedTemporaryFile("w+", encoding="utf-8", delete=False, suffix=".txt")
+            temp_file = tempfile.NamedTemporaryFile(
+                "w+", encoding="utf-8", delete=False, suffix=".txt"
+            )
             temp_file.write("\n".join(lines))
             temp_file.flush()
             temp_path = Path(temp_file.name)
 
-            await msg.answer_document(
-                types.InputFile(temp_path),
-                caption=f"📄 Валидные адреса из {filename}",
-            )
+            # Aiogram ожидает путь (str) или открытый файловый объект; Path не поддерживается
+            with temp_path.open("rb") as fh:
+                await msg.answer_document(
+                    types.InputFile(fh, filename=temp_path.name),
+                    caption=f"📄 Валидные адреса из {filename}",
+                )
         except Exception:
             logger.exception("Failed to send export file to user")
             await msg.answer("⚠️ Не удалось отправить файл с валидными адресами.")
