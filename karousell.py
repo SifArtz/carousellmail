@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import smtplib
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
@@ -324,17 +325,24 @@ class TelegramBot:
             listing: Listing = result["listing"]
             lines.append(f"{result['email']} | {listing.title}")
 
-        export_name = f"{Path(filename).stem}_emails.txt"
-        payload = "\n".join(lines).encode("utf-8")
-        file_data = types.BufferedInputFile(payload, filename=export_name)
+        temp_file = None
         try:
+            temp_file = tempfile.NamedTemporaryFile("w+", encoding="utf-8", delete=False, suffix=".txt")
+            temp_file.write("\n".join(lines))
+            temp_file.flush()
+            temp_path = Path(temp_file.name)
+
             await msg.answer_document(
-                file_data,
+                types.InputFile(temp_path),
                 caption=f"📄 Валидные адреса из {filename}",
             )
         except Exception:
             logger.exception("Failed to send export file to user")
             await msg.answer("⚠️ Не удалось отправить файл с валидными адресами.")
+        finally:
+            if temp_file:
+                temp_file.close()
+                Path(temp_file.name).unlink(missing_ok=True)
 
     async def run(self):
         logger.info("🤖 Bot started polling...")
