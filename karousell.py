@@ -4,7 +4,6 @@ import logging
 import os
 import re
 import smtplib
-from io import BytesIO
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
@@ -326,18 +325,16 @@ class TelegramBot:
             lines.append(f"{result['email']} | {listing.title}")
 
         export_name = f"{Path(filename).stem}_emails.txt"
-        buffer = BytesIO("\n".join(lines).encode("utf-8"))
-        buffer.seek(0)
+        payload = "\n".join(lines).encode("utf-8")
+        file_data = types.BufferedInputFile(payload, filename=export_name)
         try:
             await msg.answer_document(
-                types.InputFile(buffer, filename=export_name),
+                file_data,
                 caption=f"📄 Валидные адреса из {filename}",
             )
         except Exception:
             logger.exception("Failed to send export file to user")
             await msg.answer("⚠️ Не удалось отправить файл с валидными адресами.")
-        finally:
-            buffer.close()
 
     async def run(self):
         logger.info("🤖 Bot started polling...")
